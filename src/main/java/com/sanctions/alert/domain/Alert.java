@@ -69,9 +69,6 @@ public class Alert {
         if (status.isTerminal()) {
             throw new AlreadyDecidedException(id);
         }
-        if (!status.canDecide()) {
-            throw new InvalidTransitionException(status, decision);
-        }
         if (!decision.isDecision()) {
             throw new InvalidTransitionException(status, decision);
         }
