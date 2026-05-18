@@ -25,8 +25,5 @@ public enum AlertStatus {
     public boolean isDecision() {
         return this == CLEARED || this == CONFIRMED_HIT;
     }
-
-    public boolean canDecide() {
-        return this == OPEN || this == ESCALATED;
-    }
+    
 }
