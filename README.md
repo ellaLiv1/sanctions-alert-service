@@ -239,7 +239,7 @@ All domain exceptions extend `RuntimeException` (unchecked) because they represe
 ```
 OPEN ──escalate──► ESCALATED ─┐
   │                           │
-  └───────────────────────────┴──decide(CLEARED | CONFIRMED_HIT)──► terminal
+  └───────────────────────────┴──decide──► CLEARED or CONFIRMED_HIT (no further transitions)
 ```
 
 Transition logic lives exclusively in the `Alert` domain class. Decisions are write-once — once decided, no further transitions allowed.
@@ -249,6 +249,30 @@ Transition logic lives exclusively in the `Alert` domain class. Decisions are wr
 #### Event Publishing
 
 `LogEventPublisher` emits structured JSON to stdout. The key design is the `EventPublisher` interface — swapping to Kafka/NATS/SQS requires zero changes to `AlertService`.
+
+**Published event examples:**
+
+Escalation event (logged to stdout):
+```json
+{
+    "event": "alert.escalated",
+    "alertId": "a3f1c...",
+    "tenantId": "tenant-A",
+    "status": "ESCALATED",
+    "timestamp": "2024-01-01T10:05:00Z"
+}
+```
+
+Decision event (logged to stdout):
+```json
+{
+    "event": "alert.decided",
+    "alertId": "a3f1c...",
+    "tenantId": "tenant-A",
+    "decision": "CLEARED",
+    "timestamp": "2024-01-01T10:10:00Z"
+}
+```
 
 `AlertEvent` is a regular interface — not sealed — because it is an internal contract owned entirely by this service. New event types will always be added by developers who will also update the publisher. The publisher uses a pattern matching switch with a `default` case that throws `IllegalArgumentException` for unknown event types — failing fast if a developer forgets to handle a new event type.
 
@@ -271,7 +295,7 @@ The `decision` field in `DecidedAlertEvent` is defined as `String` rather than `
 | **Message broker** | Replace `LogEventPublisher` with Kafka/NATS/SQS. Add outbox pattern to guarantee no events are lost. |
 | **DTOs as records** | Replace DTO classes with Java records — immutable, concise, no boilerplate. See example below. |
 | **`AlertStatus` DTO** | Create `AlertStatusDto` enum in `dto/` to fully decouple the HTTP layer from the domain enum. Currently `AlertStatus` domain enum is used directly in response DTOs — if a new internal status is added to the domain it would automatically appear in the API response. A dedicated `AlertStatusDto` gives independent control over what statuses are exposed externally. |
-| **`DecisionStatus` enum** | Create a separate `DecisionStatus` enum with only `CLEARED` and `CONFIRMED_HIT` for the decide request DTO. Currently `AlertStatus` (all 4 values) is used in `DecideAlertRequest` — Swagger would show all 4 values as valid, misleading callers. A dedicated `DecisionStatus` enum makes the contract explicit both in code and in generated API documentation. |
+| **`DecisionStatus` enum** | Create a separate `DecisionStatus` enum with only `CLEARED` and `CONFIRMED_HIT`. Currently `AlertStatus` (all 4 values) is used in `DecideAlertRequest` and `Alert.decide()` — requiring an explicit `isDecision()` check to prevent `OPEN` or `ESCALATED` being passed as a decision. With `DecisionStatus`, the type itself enforces valid values — no runtime check needed. Swagger would also show only valid values. |
 | **API Documentation** | Add OpenAPI/Swagger to document all endpoints, request/response shapes, and timestamp formats. |
 | **Pagination** | Add cursor-based pagination to `GET /alerts`. Currently all matching alerts are returned in one response — this works for small datasets but will cause performance issues and timeouts as alerts accumulate over time. Cursor-based pagination is preferred over offset-based because it handles concurrent inserts correctly — a new alert added mid-pagination won't cause duplicates or skipped records. The `ListAlertResponse` wrapper is already designed for this — adding `nextCursor` and `hasMore` fields requires no breaking change to existing callers. |
 | **Observability** | Structured logging with trace/span IDs (OpenTelemetry), Micrometer metrics, health endpoints. |
