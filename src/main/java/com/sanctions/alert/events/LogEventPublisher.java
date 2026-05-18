@@ -45,14 +45,14 @@ public class LogEventPublisher implements EventPublisher {
         public final String event;
         public final String alertId;
         public final String tenantId;
-        public final String outcome;
+        public final String status;
         public final Instant timestamp;
 
-        public EscalatedPayload(String event, String alertId, String tenantId, String outcome, Instant timestamp) {
+        public EscalatedPayload(String event, String alertId, String tenantId, String status, Instant timestamp) {
             this.event = event;
             this.alertId = alertId;
             this.tenantId = tenantId;
-            this.outcome = outcome;
+            this.status = status;
             this.timestamp = timestamp;
         }
     }
